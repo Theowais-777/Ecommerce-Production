@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Latest" type="PhpBuiltInWebServerConfigurationType" factoryName="PHP Built-in Web Server" document_root="$PROJECT_DIR$">
+    <CommandLine parameters="C:\xampp\php\php.exe" workingDirectory="$PROJECT_DIR$/../../../../xampp/php" />
+    <method v="2" />
+  </configuration>
+</component>

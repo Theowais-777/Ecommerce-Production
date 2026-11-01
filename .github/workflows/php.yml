@@ -1,0 +1,52 @@
+name: PHP Composer
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Validate composer.json and composer.lock
+      - name: Validate composer.json and composer.lock
+        run: |
+          if [ -f "composer.json" ]; then
+            composer validate --strict
+          else
+            echo "composer.json not found, skipping validation."
+          fi
+
+      # Step 3: Cache Composer packages
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
+
+      # Step 4: Install dependencies
+      - name: Install dependencies
+        run: |
+          if [ -f "composer.json" ]; then
+            composer install --prefer-dist --no-progress
+          else
+            echo "composer.json not found, skipping installation."
+          fi
+
+      # Step 5: Run test suite (optional, uncomment if tests are defined in composer.json)
+      # - name: Run test suite
+      #   run: composer run-script test || echo "No test script defined, skipping tests."

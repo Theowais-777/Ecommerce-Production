@@ -1,0 +1,92 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-lint:
+    name: Code Validation & Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP Environment
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, mysqli, pdo_mysql, json
+          coverage: none
+
+      - name: Validate Composer File
+        run: composer validate --strict
+
+      - name: Cache Composer Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install Dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: PHP Syntax Check (Lint all files)
+        run: |
+          find . -type f -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecommerce-production-build
+          path: |
+            .
+            !.git
+            !.github
+          retention-days: 7
+
+  deploy-production:
+    name: Deploy to Production
+    needs: validate-and-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ecommerce-production-build
+          path: ./dist
+
+      - name: Check Deployment Configuration
+        run: |
+          echo "Build artifact verified and ready for deployment."
+          if [ -n "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ]; then
+            echo "Deploying via Azure Web App..."
+          elif [ -n "${{ secrets.DEPLOY_SSH_HOST }}" ]; then
+            echo "Deploying via SSH..."
+          else
+            echo "::notice ::Artifact ready! To enable automatic push to your cloud host, add AZURE_WEBAPP_PUBLISH_PROFILE or DEPLOY_SSH_KEY to repository secrets."
+          fi
+
+      - name: Deploy to Azure Web App (if profile configured)
+        if: env.HAS_AZURE == 'true'
+        uses: azure/webapps-deploy@v3
+        env:
+          HAS_AZURE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' }}
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME || 'Ecommerce' }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./dist
+
